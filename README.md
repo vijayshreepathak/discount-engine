@@ -6,6 +6,11 @@
 </p>
 
 <p align="center">
+  <a href="https://disengine.vercel.app/"><strong>🚀 Live Demo → disengine.vercel.app</strong></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Live-disengine.vercel.app-FF5800?style=flat-square" alt="Live Demo" />
   <img src="https://img.shields.io/badge/React-18-61dafb?style=flat-square&logo=react&logoColor=white" alt="React 18" />
   <img src="https://img.shields.io/badge/Vite-5-646cff?style=flat-square&logo=vite&logoColor=white" alt="Vite 5" />
   <img src="https://img.shields.io/badge/Opptra-Assignment-FF5800?style=flat-square" alt="Opptra Assignment" />
@@ -13,6 +18,16 @@
   <img src="https://img.shields.io/badge/Build-Passing-success?style=flat-square" alt="Build Passing" />
   <img src="https://img.shields.io/badge/Tests-42%20passing-success?style=flat-square" alt="Tests Passing" />
 </p>
+
+---
+
+## Live Demo
+
+Try the deployed app (no install required):
+
+**[https://disengine.vercel.app/](https://disengine.vercel.app/)**
+
+Upload `sample-data/rules.csv` and `sample-data/cart.csv` to reproduce the assignment output. Natural Language Rules require an Anthropic API key configured in the Vercel deployment environment.
 
 ---
 
@@ -325,7 +340,7 @@ Output directory: `dist/`
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `VITE_ANTHROPIC_API_KEY` | Only for AI rules | Anthropic API key for natural language rule parsing |
-| `VITE_ANTHROPIC_MODEL` | No | Claude model override (default: `claude-sonnet-4-20250514`) |
+| `VITE_ANTHROPIC_MODEL` | No | Claude model override (default: `claude-sonnet-4-6`) |
 
 **No API key is required** for CSV upload, PDF upload, discount calculation, or export unless Natural Language Rule parsing is enabled.
 
@@ -335,6 +350,8 @@ See `.env.example` for the template.
 
 ## Deployment
 
+**Live deployment:** [https://disengine.vercel.app/](https://disengine.vercel.app/)
+
 Static deployment to **Vercel**, **Netlify**, or **GitHub Pages**.
 
 | Setting | Value |
@@ -342,6 +359,8 @@ Static deployment to **Vercel**, **Netlify**, or **GitHub Pages**.
 | Build command | `npm run build` |
 | Output directory | `dist` |
 | Node version | 18+ |
+
+For AI rule creation on Vercel, add `VITE_ANTHROPIC_API_KEY` (and optionally `VITE_ANTHROPIC_MODEL`) under **Project → Settings → Environment Variables**, then redeploy.
 
 Full guides: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
@@ -391,11 +410,11 @@ Replace SVG placeholders with PNG captures before submission. See [assets/screen
 
 ## Author
 
-**Your Name**
+**Vijayshree**
 
-- GitHub: [your-github-username](https://github.com/your-github-username)
-- LinkedIn: [your-linkedin-profile](https://linkedin.com/in/your-profile)
+- LinkedIn: [linkedin.com/in/vijayshreevaibhav](https://www.linkedin.com/in/vijayshreevaibhav)
 
 ---
 
 <p align="center">Built for the Opptra FDE Assignment · Discount Engine</p>
+<p align="center">Built by <a href="https://www.linkedin.com/in/vijayshreevaibhav">Vijayshree</a></p>
