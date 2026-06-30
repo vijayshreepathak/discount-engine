@@ -93,4 +93,4 @@ Navigate to **Discount Rules → Create Rule with AI**, describe a rule, parse, 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `VITE_ANTHROPIC_API_KEY` | For AI rules | Anthropic API key |
-| `VITE_ANTHROPIC_MODEL` | No | Override model (default: `claude-sonnet-4-20250514`) |
+| `VITE_ANTHROPIC_MODEL` | No | Override model (default: `claude-sonnet-4-6`) |

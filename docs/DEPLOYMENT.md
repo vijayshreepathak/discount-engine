@@ -1,5 +1,7 @@
 # Deployment Guide
 
+**Live deployment:** [https://disengine.vercel.app/](https://disengine.vercel.app/)
+
 The Discount Engine is a **static React SPA** built with Vite. Deploy the `dist/` folder to any static host.
 
 ---
@@ -114,7 +116,7 @@ Vite copies `public/` contents into `dist/` on build.
 | Variable | Required | When |
 |----------|----------|------|
 | `VITE_ANTHROPIC_API_KEY` | No | Natural Language Rule parsing only |
-| `VITE_ANTHROPIC_MODEL` | No | Claude model override (default: `claude-sonnet-4-20250514`) |
+| `VITE_ANTHROPIC_MODEL` | No | Claude model override (default: `claude-sonnet-4-6`) |
 
 **No environment variables are required** for CSV upload, PDF upload, calculation, or export.
 

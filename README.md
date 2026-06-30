@@ -290,7 +290,7 @@ Upload `sample-data/rules.csv` and `sample-data/cart.csv`, then click **Calculat
 ## Running Locally
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/vijayshreepathak/discount-engine.git
 cd discount-engine
 npm install
 npm run dev
@@ -412,6 +412,7 @@ Replace SVG placeholders with PNG captures before submission. See [assets/screen
 
 **Vijayshree**
 
+- GitHub: [github.com/vijayshreepathak/discount-engine](https://github.com/vijayshreepathak/discount-engine)
 - LinkedIn: [linkedin.com/in/vijayshreevaibhav](https://www.linkedin.com/in/vijayshreevaibhav)
 
 ---
