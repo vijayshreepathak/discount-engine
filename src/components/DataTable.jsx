@@ -1,59 +1,81 @@
 /**
- * DataTable.jsx
- *
- * Renders a simple table from an array of objects.
- * Columns are defined as [{ key, label, render? }].
+ * Data table with sticky header, hover rows, and optional client-side sort.
  */
 
-export default function DataTable({ columns, rows, emptyMessage = 'No data loaded.' }) {
-  if (!rows || rows.length === 0) {
+import { memo, useMemo, useState } from 'react'
+import EmptyState from './ui/EmptyState.jsx'
+
+function DataTable({
+  columns,
+  rows,
+  emptyMessage,
+  emptyIcon,
+  emptyAction,
+  sticky = false,
+  sortable = false,
+}) {
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState('asc')
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey || !sortable) return rows ?? []
+    const copy = [...rows]
+    copy.sort((a, b) => {
+      const av = a[sortKey]
+      const bv = b[sortKey]
+      if (typeof av === 'number' && typeof bv === 'number') {
+        return sortDir === 'asc' ? av - bv : bv - av
+      }
+      return sortDir === 'asc'
+        ? String(av ?? '').localeCompare(String(bv ?? ''))
+        : String(bv ?? '').localeCompare(String(av ?? ''))
+    })
+    return copy
+  }, [rows, sortKey, sortDir, sortable])
+
+  function toggleSort(key) {
+    if (!sortable) return
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  if (!rows?.length) {
     return (
-      <div
-        style={{
-          padding: '1rem',
-          textAlign: 'center',
-          color: '#888',
-          fontSize: 13,
-          border: '1px solid #CECECE',
-          borderRadius: 4,
-        }}
-      >
-        {emptyMessage}
-      </div>
+      <EmptyState
+        icon={emptyIcon ?? '📋'}
+        title={emptyMessage ?? 'No data loaded'}
+        description="Upload a file or add data to see it here."
+        action={emptyAction}
+      />
     )
   }
 
   return (
-    <div style={{ overflowX: 'auto', border: '1px solid #CECECE', borderRadius: 4 }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+    <div className={`table-wrap${sticky ? ' table-wrap--sticky' : ''}`}>
+      <table className="table">
         <thead>
-          <tr style={{ background: '#131A48', color: '#fff' }}>
+          <tr>
             {columns.map((col) => (
               <th
                 key={col.key}
-                style={{
-                  padding: '7px 10px',
-                  textAlign: 'left',
-                  fontWeight: 700,
-                  fontSize: 11,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                  whiteSpace: 'nowrap',
-                }}
+                scope="col"
+                className={sortable ? 'table__th--sortable' : ''}
+                onClick={() => toggleSort(col.key)}
+                aria-sort={sortKey === col.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
               >
                 {col.label}
+                {sortable && sortKey === col.key && (
+                  <span className="table__sort-icon" aria-hidden>{sortDir === 'asc' ? '↑' : '↓'}</span>
+                )}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => (
-            <tr
-              key={i}
-              style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f0f0' }}
-            >
+          {sortedRows.map((row, i) => (
+            <tr key={row.itemId ?? row.ruleId ?? i}>
               {columns.map((col) => (
-                <td key={col.key} style={{ padding: '6px 10px', color: '#131A48', verticalAlign: 'top' }}>
+                <td key={col.key}>
                   {col.render ? col.render(row[col.key], row) : row[col.key] ?? '—'}
                 </td>
               ))}
@@ -64,3 +86,5 @@ export default function DataTable({ columns, rows, emptyMessage = 'No data loade
     </div>
   )
 }
+
+export default memo(DataTable)

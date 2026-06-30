@@ -1,29 +1,42 @@
 /**
- * ErrorBanner.jsx
- * Displays a list of parse or validation errors.
+ * Error alert with actionable guidance.
  */
 
-export default function ErrorBanner({ errors }) {
-  if (!errors || errors.length === 0) return null
+const HINTS = {
+  missing: 'Ensure all required columns are present in your CSV header row.',
+  duplicate: 'Each rule_id must be unique. Remove or rename duplicate entries.',
+  value: 'Check that numeric fields contain positive numbers without currency symbols.',
+  scope: 'Scope must be brand, platform, or cart.',
+}
+
+function suggestFix(error) {
+  const lower = error.toLowerCase()
+  if (lower.includes('missing')) return HINTS.missing
+  if (lower.includes('duplicate')) return HINTS.duplicate
+  if (lower.includes('value') || lower.includes('number')) return HINTS.value
+  if (lower.includes('scope')) return HINTS.scope
+  return 'Review the row mentioned above and re-upload the corrected file.'
+}
+
+export default function ErrorBanner({ errors, title, onRetry }) {
+  if (!errors?.length) return null
+
   return (
-    <div
-      style={{
-        background: '#fce8e8',
-        border: '1px solid #e57373',
-        borderLeft: '3px solid #c0392b',
-        borderRadius: 4,
-        padding: '0.6rem 0.9rem',
-        marginTop: '0.5rem',
-      }}
-    >
-      <div style={{ fontWeight: 700, fontSize: 12, color: '#8a1a1a', marginBottom: 4 }}>
-        {errors.length} issue{errors.length > 1 ? 's' : ''} found
+    <div className="alert alert--error" role="alert">
+      <div className="alert__title">
+        {title ?? `${errors.length} issue${errors.length > 1 ? 's' : ''} found`}
       </div>
       {errors.map((e, i) => (
-        <div key={i} style={{ fontSize: 12, color: '#5a1010', marginTop: 2 }}>
-          {e}
+        <div key={i} className="alert__row">
+          <div>{e}</div>
+          <div className="alert__hint">{suggestFix(e)}</div>
         </div>
       ))}
+      {onRetry && (
+        <button type="button" className="btn btn--ghost btn--sm" style={{ marginTop: 8 }} onClick={onRetry}>
+          Try again
+        </button>
+      )}
     </div>
   )
 }

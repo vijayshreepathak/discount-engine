@@ -1,20 +1,26 @@
 {
   "name": "discount-engine",
   "version": "1.0.0",
-  "description": "Opptra FDE Intern Assignment — Discount Engine",
+  "description": "Customer-facing discount pricing engine — CSV, PDF, AI rules, and cart offers",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.107.0",
     "papaparse": "^5.4.1",
+    "pdfjs-dist": "^4.10.38",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
-    "vite": "^5.0.0"
+    "vite": "^5.0.0",
+    "vitest": "^4.1.9"
   }
 }

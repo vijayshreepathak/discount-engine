@@ -1,231 +1,530 @@
 /**
- * App.jsx
- *
- * Top-level component. Manages state for rules, cart items, and results.
- * Wires together CSV upload → parse → engine → display.
+ * App.jsx — orchestration only. No discount, parsing, or AI logic.
  */
 
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Header from './components/layout/Header.jsx'
 import CsvUploader from './components/CsvUploader.jsx'
 import DataTable from './components/DataTable.jsx'
 import ErrorBanner from './components/ErrorBanner.jsx'
+import NaturalLanguageRuleInput from './components/NaturalLanguageRuleInput.jsx'
+import CartSummaryPanel from './components/CartSummaryPanel.jsx'
+import RuleHistoryPanel from './components/RuleHistoryPanel.jsx'
+import ProcessingTimeline from './components/ProcessingTimeline.jsx'
+import SavingsBreakdown from './components/SavingsBreakdown.jsx'
+import StatusBadge from './components/ui/StatusBadge.jsx'
+import KpiCard from './components/ui/KpiCard.jsx'
+import EmptyState from './components/ui/EmptyState.jsx'
+import { ToastContainer } from './components/Toast.jsx'
 import { parseRulesCSV, parseCartCSV } from './engine/csvParser.js'
-import { processCart, cartTotal } from './engine/discountEngine.js'
-
-// ── Column definitions ───────────────────────────────────────────
-
-const RULES_COLUMNS = [
-  { key: 'ruleId',    label: 'Rule ID' },
-  { key: 'scope',     label: 'Scope',      render: (v) => v.charAt(0).toUpperCase() + v.slice(1) },
-  { key: 'appliesTo', label: 'Applies To' },
-  { key: 'type',      label: 'Type',       render: (v) => v.charAt(0).toUpperCase() + v.slice(1) },
-  {
-    key: 'value',
-    label: 'Value',
-    render: (v, row) => row.type === 'percentage' ? `${v}% off` : `Rs.${v} off`,
-  },
-  { key: 'stackable', label: 'Stackable',  render: (v) => (v ? 'Yes' : 'No') },
-]
-
-const CART_COLUMNS = [
-  { key: 'itemId',    label: 'Item' },
-  { key: 'product',   label: 'Product' },
-  { key: 'brand',     label: 'Brand' },
-  { key: 'platform',  label: 'Platform' },
-  { key: 'basePrice', label: 'Base Price', render: (v) => `Rs.${v.toLocaleString('en-IN')}` },
-]
-
-const RESULTS_COLUMNS = [
-  { key: 'itemId',    label: 'Item' },
-  { key: 'product',   label: 'Product' },
-  { key: 'basePrice', label: 'Base Price',  render: (v) => `Rs.${v.toLocaleString('en-IN')}` },
-  { key: 'finalPrice',label: 'Final Price',
-    render: (v, row) => (
-      <span style={{ fontWeight: 700, color: row.totalDiscount > 0 ? '#1e5c2c' : '#131A48' }}>
-        Rs.{v.toLocaleString('en-IN')}
-      </span>
-    ),
-  },
-  {
-    key: 'totalDiscount',
-    label: 'You Save',
-    render: (v) =>
-      v > 0 ? (
-        <span style={{ color: '#1e5c2c', fontWeight: 600 }}>Rs.{v.toLocaleString('en-IN')}</span>
-      ) : (
-        <span style={{ color: '#888' }}>—</span>
-      ),
-  },
-  {
-    key: 'reasoning',
-    label: 'Offer Applied',
-    render: (v) => (
-      <span style={{ color: v === 'No offers available' ? '#888' : '#131A48', fontStyle: v === 'No offers available' ? 'italic' : 'normal' }}>
-        {v}
-      </span>
-    ),
-  },
-]
-
-// ── Styles ───────────────────────────────────────────────────────
-
-const S = {
-  page:    { minHeight: '100vh', background: '#f7f7f9', fontFamily: 'Arial, sans-serif' },
-  header:  { background: '#131A48', padding: '0.85rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  logoTxt: { fontFamily: 'Georgia, serif', fontSize: 17, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' },
-  logoSpan:{ color: '#FF5800' },
-  headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.07em' },
-  main:    { maxWidth: 960, margin: '0 auto', padding: '1.8rem 1.5rem' },
-  section: { background: '#fff', border: '1px solid #CECECE', borderRadius: 6, padding: '1.2rem 1.4rem', marginBottom: '1.2rem' },
-  sectionTitle: { fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: 14, color: '#131A48', marginBottom: '0.7rem', paddingBottom: 6, borderBottom: '2px solid #FF5800', display: 'inline-block' },
-  grid2:   { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' },
-  btn:     {
-    background: '#FF5800', color: '#fff', border: 'none', borderRadius: 4,
-    padding: '0.65rem 2rem', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-    letterSpacing: '0.04em', textTransform: 'uppercase',
-  },
-  btnDisabled: {
-    background: '#CECECE', color: '#fff', border: 'none', borderRadius: 4,
-    padding: '0.65rem 2rem', fontSize: 13, fontWeight: 700, cursor: 'not-allowed',
-    letterSpacing: '0.04em', textTransform: 'uppercase',
-  },
-  totalRow: {
-    display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
-    gap: '1rem', marginTop: '0.75rem', paddingTop: '0.75rem',
-    borderTop: '2px solid #131A48',
-  },
-  totalLabel: { fontWeight: 700, fontSize: 14, color: '#131A48' },
-  totalValue: { fontWeight: 700, fontSize: 16, color: '#131A48' },
-  tag: (color, bg) => ({
-    display: 'inline-block', fontSize: 10, fontWeight: 700, padding: '1px 6px',
-    borderRadius: 20, background: bg, color, textTransform: 'uppercase', letterSpacing: '0.04em',
-  }),
-}
-
-// ── Component ────────────────────────────────────────────────────
+import { processCart } from './engine/discountEngine.js'
+import { formatCurrency } from './utils/formatCurrency.js'
+import { downloadResultsCsv } from './utils/exportResultsCsv.js'
+import { downloadRulesCsv } from './utils/exportRulesCsv.js'
+import { useTheme } from './hooks/useTheme.js'
+import { useToast } from './hooks/useToast.js'
 
 export default function App() {
-  const [rules, setRules]           = useState([])
-  const [rulesErrors, setRulesErr]  = useState([])
+  const { theme, toggleTheme } = useTheme()
+  const { toasts, show, dismiss } = useToast()
+
+  const [rules, setRules] = useState([])
+  const [rulesErrors, setRulesErr] = useState([])
   const [rulesFileName, setRulesFileName] = useState('')
+  const [ruleHistory, setRuleHistory] = useState([])
+  const [aiRules, setAiRules] = useState([])
 
-  const [cartItems, setCartItems]   = useState([])
+  const [cartItems, setCartItems] = useState([])
   const [cartErrors, setCartErrors] = useState([])
-  const [cartFileName, setCartFileName]   = useState('')
+  const [cartFileName, setCartFileName] = useState('')
 
-  const [results, setResults]       = useState(null)
+  const [results, setResults] = useState(null)
+  const [calculating, setCalculating] = useState(false)
+  const [showTimeline, setShowTimeline] = useState(false)
+  const [rulesUploadedAt, setRulesUploadedAt] = useState(null)
+  const [cartUploadedAt, setCartUploadedAt] = useState(null)
+  const [ruleSearch, setRuleSearch] = useState('')
+  const [resultFilter, setResultFilter] = useState('')
+  const resultsRef = useRef(null)
+  const scrollToResultsRef = useRef(false)
 
-  // ── Handlers ──
+  const handleRulesLoad = useCallback(
+    (csvText, fileName) => {
+      const { data, errors } = parseRulesCSV(csvText)
+      setRules(data)
+      setRulesErr(errors)
+      setRulesFileName(fileName)
+      setResults(null)
+      setShowTimeline(false)
+      setRulesUploadedAt(new Date())
+      if (data.length && !errors.length) {
+        show(`${data.length} rule${data.length > 1 ? 's' : ''} loaded`, 'success')
+      } else if (errors.length) {
+        show('Rules CSV has validation issues', 'warning')
+      }
+    },
+    [show]
+  )
 
-  function handleRulesLoad(csvText, fileName) {
-    const { data, errors } = parseRulesCSV(csvText)
-    setRules(data)
-    setRulesErr(errors)
-    setRulesFileName(fileName)
-    setResults(null) // clear stale results
+  const applyCartParseResult = useCallback(
+    (data, errors, fileName) => {
+      setCartItems(data)
+      setCartErrors(errors)
+      setCartFileName(fileName)
+      setResults(null)
+      setShowTimeline(false)
+      setCartUploadedAt(new Date())
+      if (data.length && !errors.length) {
+        show(`${data.length} item${data.length > 1 ? 's' : ''} loaded`, 'success')
+      } else if (errors.length) {
+        show('Cart file has validation issues', 'warning')
+      }
+    },
+    [show]
+  )
+
+  const handleCartFile = useCallback(
+    async (file) => {
+      const fileName = file.name
+      if (fileName.toLowerCase().endsWith('.pdf')) {
+        const { parseCartPDF } = await import('./engine/pdfParser.js')
+        const { data, errors } = await parseCartPDF(await file.arrayBuffer())
+        applyCartParseResult(data, errors, fileName)
+        return
+      }
+
+      const text = await file.text()
+      const { data, errors } = parseCartCSV(text)
+      applyCartParseResult(data, errors, fileName)
+    },
+    [applyCartParseResult]
+  )
+
+  const handleCalculate = useCallback(() => {
+    setCalculating(true)
+    setShowTimeline(false)
+    scrollToResultsRef.current = true
+    setTimeout(() => {
+      setResults(processCart(cartItems, rules))
+      setCalculating(false)
+      setShowTimeline(true)
+      show('Discounts calculated successfully', 'success')
+    }, 480)
+  }, [cartItems, rules, show])
+
+  useEffect(() => {
+    if (!results || calculating || !scrollToResultsRef.current) return
+    scrollToResultsRef.current = false
+    const frame = requestAnimationFrame(() => {
+      resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [results, calculating])
+
+  const handleRuleConfirmed = useCallback(
+    (newRule, prompt = '') => {
+      setRuleHistory((h) => [...h, rules])
+      const updated = [...rules, newRule]
+      setRules(updated)
+      setAiRules((a) => [...a, { rule: newRule, prompt, addedAt: Date.now() }])
+      if (cartItems.length > 0 && cartErrors.length === 0) {
+        setResults(processCart(cartItems, updated))
+        setShowTimeline(true)
+      }
+    },
+    [rules, cartItems, cartErrors]
+  )
+
+  const handleUndoRule = useCallback(() => {
+    if (!ruleHistory.length) return
+    const prev = ruleHistory[ruleHistory.length - 1]
+    setRules(prev)
+    setRuleHistory((h) => h.slice(0, -1))
+    setAiRules((a) => a.slice(0, -1))
+    if (cartItems.length > 0) {
+      setResults(processCart(cartItems, prev))
+    }
+    show('Last rule addition undone', 'info')
+  }, [ruleHistory, cartItems, show])
+
+  const canCalculate =
+    rules.length > 0 && cartItems.length > 0 && rulesErrors.length === 0 && cartErrors.length === 0
+
+  const baseTotal = useMemo(
+    () => cartItems.reduce((s, i) => s + i.basePrice, 0),
+    [cartItems]
+  )
+
+  const filteredRules = useMemo(() => {
+    if (!ruleSearch.trim()) return rules
+    const q = ruleSearch.toLowerCase()
+    return rules.filter(
+      (r) =>
+        r.ruleId.toLowerCase().includes(q) ||
+        r.appliesTo?.toLowerCase().includes(q) ||
+        r.scope.includes(q)
+    )
+  }, [rules, ruleSearch])
+
+  const filteredResults = useMemo(() => {
+    if (!results) return []
+    if (!resultFilter.trim()) return results.items
+    const q = resultFilter.toLowerCase()
+    return results.items.filter(
+      (r) =>
+        r.itemId.toLowerCase().includes(q) ||
+        r.product.toLowerCase().includes(q) ||
+        r.brand.toLowerCase().includes(q) ||
+        r.status.toLowerCase().includes(q)
+    )
+  }, [results, resultFilter])
+
+  const analytics = useMemo(() => {
+    if (!results) return null
+    const itemSavings = results.items.reduce((s, i) => s + i.totalDiscount, 0)
+    const rulesApplied = new Set(
+      results.items.flatMap((i) => i.appliedRules).concat(results.cartSummary.appliedCartRules)
+    )
+    const stackedCount = results.items.filter((i) => i.status === 'Stacked').length
+    const totalSavings = itemSavings + results.cartSummary.cartDiscount
+    const savingsPct = baseTotal > 0 ? ((totalSavings / baseTotal) * 100).toFixed(1) : '0'
+
+    return {
+      totalItems: results.items.length,
+      rulesApplied: rulesApplied.size,
+      stackedCount,
+      totalSavings,
+      savingsPct,
+      finalAmount: results.cartSummary.finalTotal,
+      itemSavings,
+    }
+  }, [results, baseTotal])
+
+  const rulesColumns = useMemo(
+    () => [
+      { key: 'ruleId', label: 'Rule ID' },
+      {
+        key: 'scope',
+        label: 'Scope',
+        render: (v) => <span className="badge badge--neutral">{v.charAt(0).toUpperCase() + v.slice(1)}</span>,
+      },
+      { key: 'appliesTo', label: 'Applies To', render: (v) => v || 'Entire cart' },
+      {
+        key: 'type',
+        label: 'Type',
+        render: (v) => (
+          <span className={`badge ${v === 'percentage' ? 'badge--info' : 'badge--purple'}`}>
+            {v.charAt(0).toUpperCase() + v.slice(1)}
+          </span>
+        ),
+      },
+      {
+        key: 'value',
+        label: 'Value',
+        render: (v, row) => (row.type === 'percentage' ? `${v}% off` : formatCurrency(v) + ' off'),
+      },
+      {
+        key: 'minCartValue',
+        label: 'Min Cart',
+        render: (v) => (v != null ? formatCurrency(v) : '—'),
+      },
+      {
+        key: 'stackable',
+        label: 'Stackable',
+        render: (v) => (
+          <span className={`badge ${v ? 'badge--success' : 'badge--neutral'}`}>{v ? 'Yes' : 'No'}</span>
+        ),
+      },
+    ],
+    []
+  )
+
+  const cartColumns = useMemo(
+    () => [
+      { key: 'itemId', label: 'Item' },
+      { key: 'product', label: 'Product' },
+      { key: 'brand', label: 'Brand' },
+      { key: 'platform', label: 'Platform' },
+      { key: 'basePrice', label: 'Base Price', render: (v) => formatCurrency(v) },
+    ],
+    []
+  )
+
+  const resultsColumns = useMemo(
+    () => [
+      { key: 'itemId', label: 'Item' },
+      { key: 'product', label: 'Product' },
+      { key: 'brand', label: 'Brand' },
+      { key: 'platform', label: 'Platform' },
+      { key: 'basePrice', label: 'Base Price', render: (v) => formatCurrency(v) },
+      {
+        key: 'appliedRules',
+        label: 'Applied Rules',
+        render: (v) => (v.length ? v.join(' + ') : '—'),
+      },
+      {
+        key: 'totalDiscount',
+        label: 'Savings',
+        render: (v) =>
+          v > 0 ? (
+            <span className="table__savings">{formatCurrency(v)}</span>
+          ) : (
+            <span className="table__muted">—</span>
+          ),
+      },
+      {
+        key: 'reasoning',
+        label: 'Explanation',
+        render: (v, row) => (
+          <span className={row.status === 'No offer' ? 'table__muted' : 'table__explanation'}>{v}</span>
+        ),
+      },
+      {
+        key: 'finalPrice',
+        label: 'Final Price',
+        render: (v, row) => (
+          <span className={row.totalDiscount > 0 ? 'table__final table__final--discounted' : 'table__final'}>
+            {formatCurrency(v)}
+          </span>
+        ),
+      },
+      { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
+    ],
+    []
+  )
+
+  function copyLastRuleJson() {
+    const last = aiRules[aiRules.length - 1]?.rule ?? rules[rules.length - 1]
+    if (!last) return
+    navigator.clipboard.writeText(JSON.stringify(last, null, 2))
+    show('Rule JSON copied to clipboard', 'info')
   }
 
-  function handleCartLoad(csvText, fileName) {
-    const { data, errors } = parseCartCSV(csvText)
-    setCartItems(data)
-    setCartErrors(errors)
-    setCartFileName(fileName)
-    setResults(null)
+  function copyLastPrompt() {
+    const last = aiRules[aiRules.length - 1]?.prompt
+    if (!last) { show('No AI prompt to copy', 'warning'); return }
+    navigator.clipboard.writeText(last)
+    show('Prompt copied to clipboard', 'info')
   }
-
-  function handleCalculate() {
-    const res = processCart(cartItems, rules)
-    setResults(res)
-  }
-
-  const canCalculate = rules.length > 0 && cartItems.length > 0
-
-  // ── Render ──
 
   return (
-    <div style={S.page}>
-      {/* Header */}
-      <div style={S.header}>
-        <div style={S.logoTxt}>O<span style={S.logoSpan}>pp</span>tra</div>
-        <div style={S.headerSub}>Discount Engine</div>
-      </div>
+    <div className="app">
+      <Header theme={theme} onToggleTheme={toggleTheme} />
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
 
-      <div style={S.main}>
+      <main className="main">
+        <div className="grid-2">
+          <section className="card" aria-labelledby="rules-heading">
+            <div className="card__header">
+              <div>
+                <h2 id="rules-heading" className="card__title">Discount Rules</h2>
+                <p className="card__desc">Create rules with AI or upload a CSV file</p>
+                <div className="card__accent" />
+              </div>
+            </div>
 
-        {/* Upload row */}
-        <div style={S.grid2}>
-          {/* Rules upload */}
-          <div style={S.section}>
-            <div style={S.sectionTitle}>Discount Rules</div>
+            <NaturalLanguageRuleInput
+              existingRules={rules}
+              onRuleConfirmed={handleRuleConfirmed}
+              onToast={show}
+            />
+
+            <div className="section-divider">
+              <span>Or upload rules CSV</span>
+            </div>
+
             <CsvUploader
               label="rules.csv"
-              description="Upload your discount rules CSV"
+              description="Drag and drop or browse to upload"
               onLoad={handleRulesLoad}
-              hasData={rules.length > 0}
+              itemCount={rules.length}
+              itemLabel={rules.length === 1 ? 'Rule' : 'Rules'}
               fileName={rulesFileName}
+              errorCount={rulesErrors.length}
+              uploadedAt={rulesUploadedAt}
             />
             <ErrorBanner errors={rulesErrors} />
-            {rules.length > 0 && (
-              <div style={{ marginTop: '0.75rem' }}>
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>
-                  {rules.length} rule{rules.length > 1 ? 's' : ''} loaded
-                </div>
-                <DataTable columns={RULES_COLUMNS} rows={rules} />
-              </div>
-            )}
-          </div>
 
-          {/* Cart upload */}
-          <div style={S.section}>
-            <div style={S.sectionTitle}>Cart Items</div>
+            <RuleHistoryPanel
+              aiRules={aiRules}
+              canUndo={ruleHistory.length > 0}
+              onUndo={handleUndoRule}
+              onCopyJson={copyLastRuleJson}
+              onCopyPrompt={copyLastPrompt}
+              onExport={() => { downloadRulesCsv(rules); show('Rules exported', 'success') }}
+            />
+
+            {rules.length > 0 ? (
+              <>
+                <div className="toolbar section-block">
+                  <input
+                    type="search"
+                    className="toolbar__search"
+                    placeholder="Search rules…"
+                    value={ruleSearch}
+                    onChange={(e) => setRuleSearch(e.target.value)}
+                    aria-label="Search rules"
+                  />
+                </div>
+                <DataTable columns={rulesColumns} rows={filteredRules} sortable emptyMessage="No matching rules" />
+              </>
+            ) : (
+              <EmptyState
+                variant="rules"
+                title="No rules yet"
+                description="Create a rule with AI above, or upload a rules CSV file."
+                action={
+                  <button type="button" className="btn btn--secondary btn--sm" onClick={() => document.getElementById('nl-rule-input')?.focus()}>
+                    Write a rule
+                  </button>
+                }
+              />
+            )}
+          </section>
+
+          <section className="card" aria-labelledby="cart-heading">
+            <div className="card__header">
+              <div>
+                <h2 id="cart-heading" className="card__title">Cart Items</h2>
+                <p className="card__desc">Upload cart CSV or PDF to calculate discounts</p>
+                <div className="card__accent" />
+              </div>
+            </div>
+
             <CsvUploader
-              label="cart.csv"
-              description="Upload your cart CSV"
-              onLoad={handleCartLoad}
-              hasData={cartItems.length > 0}
+              label="cart.csv or cart.pdf"
+              description="Drag and drop CSV or PDF, or browse to upload"
+              accept=".csv,.pdf"
+              onLoadFile={handleCartFile}
+              itemCount={cartItems.length}
+              itemLabel={cartItems.length === 1 ? 'Item' : 'Items'}
               fileName={cartFileName}
+              errorCount={cartErrors.length}
+              uploadedAt={cartUploadedAt}
             />
             <ErrorBanner errors={cartErrors} />
-            {cartItems.length > 0 && (
-              <div style={{ marginTop: '0.75rem' }}>
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>
-                  {cartItems.length} item{cartItems.length > 1 ? 's' : ''} loaded
-                </div>
-                <DataTable columns={CART_COLUMNS} rows={cartItems} />
+
+            {cartItems.length > 0 ? (
+              <div className="section-block">
+                <DataTable columns={cartColumns} rows={cartItems} sortable />
               </div>
+            ) : (
+              <EmptyState
+                variant="cart"
+                title="No cart items"
+                description="Upload a cart CSV or PDF with item_id, product, brand, platform, and base_price."
+              />
             )}
-          </div>
+          </section>
         </div>
 
-        {/* Calculate button */}
-        <div style={{ textAlign: 'center', marginBottom: '1.2rem' }}>
+        <div className="section-actions">
           <button
-            style={canCalculate ? S.btn : S.btnDisabled}
+            type="button"
+            className="btn btn--primary btn--lg"
             onClick={handleCalculate}
-            disabled={!canCalculate}
+            disabled={!canCalculate || calculating}
+            aria-busy={calculating}
           >
-            Calculate Discounts
+            {calculating ? (
+              <>
+                <span className="spinner" aria-hidden /> Calculating…
+              </>
+            ) : (
+              'Calculate Discounts'
+            )}
           </button>
           {!canCalculate && (
-            <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
-              Upload both files to calculate
-            </div>
+            <p className="calculate-hint">Upload both rules and cart files to calculate</p>
           )}
         </div>
 
-        {/* Results */}
-        {results && (
-          <div style={S.section}>
-            <div style={S.sectionTitle}>Cart Summary</div>
-            <DataTable columns={RESULTS_COLUMNS} rows={results} />
-            <div style={S.totalRow}>
-              <span style={S.totalLabel}>Cart Total</span>
-              <span style={S.totalValue}>Rs.{cartTotal(results).toLocaleString('en-IN')}</span>
+        {calculating && (
+          <div className="card section-block--lg">
+            <div className="kpi-grid kpi-grid--skeleton">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="kpi">
+                  <div className="skeleton skeleton--sm" />
+                  <div className="skeleton skeleton--lg" />
+                </div>
+              ))}
             </div>
           </div>
         )}
 
-      </div>
+        {results && analytics && !calculating && (
+          <section
+            ref={resultsRef}
+            className="results-section card"
+            aria-labelledby="results-heading"
+            tabIndex={-1}
+          >
+            <div className="card__header results-section__header">
+              <div>
+                <h2 id="results-heading" className="card__title">Pricing Results</h2>
+                <p className="card__desc">Item-level discounts, savings breakdown, and cart summary</p>
+              </div>
+              <div className="btn-group">
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm"
+                  onClick={() => { downloadResultsCsv(results); show('Results exported', 'success') }}
+                >
+                  Export Results
+                </button>
+              </div>
+            </div>
+
+            <div className="results-section__body">
+              {showTimeline && <ProcessingTimeline visible />}
+
+              <div className="kpi-grid">
+                <KpiCard label="Total Items" value={analytics.totalItems} icon="items" />
+                <KpiCard label="Rules Applied" value={analytics.rulesApplied} icon="rules" accent />
+                <KpiCard label="Stacked Discounts" value={analytics.stackedCount} icon="stacked" />
+                <KpiCard label="Total Savings" value={analytics.totalSavings} prefix="Rs." green icon="savings" />
+                <KpiCard label="Savings %" value={analytics.savingsPct} suffix="%" icon="percent" green />
+                <KpiCard label="Final Total" value={analytics.finalAmount} prefix="Rs." accent icon="final" />
+              </div>
+
+              <SavingsBreakdown
+                baseTotal={baseTotal}
+                totalSavings={analytics.totalSavings}
+                finalTotal={analytics.finalAmount}
+              />
+
+              <div className="toolbar">
+                <input
+                  type="search"
+                  className="toolbar__search"
+                  placeholder="Filter by item, brand, status…"
+                  value={resultFilter}
+                  onChange={(e) => setResultFilter(e.target.value)}
+                  aria-label="Filter results"
+                />
+              </div>
+
+              <DataTable columns={resultsColumns} rows={filteredResults} sticky sortable emptyMessage="No matching results" />
+
+              <CartSummaryPanel
+                cartSummary={results.cartSummary}
+                itemSavings={analytics.itemSavings}
+                rulesAppliedCount={analytics.rulesApplied}
+                itemCount={analytics.totalItems}
+                baseTotal={baseTotal}
+              />
+            </div>
+          </section>
+        )}
+
+        {!results && !calculating && canCalculate && (
+          <div className="ready-hint" role="status">
+            <p className="ready-hint__text">
+              Rules and cart are loaded. Click <strong>Calculate Discounts</strong> above to view pricing results.
+            </p>
+          </div>
+        )}
+      </main>
     </div>
   )
 }
