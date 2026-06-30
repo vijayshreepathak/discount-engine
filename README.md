@@ -376,8 +376,6 @@ Full guides: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 |---------|-----------|--------|
 | ![AI Rule](assets/screenshots/04-ai-rule.svg) | ![Dark Mode](assets/screenshots/05-dark-mode.svg) | ![Mobile](assets/screenshots/06-mobile.svg) |
 
-Replace SVG placeholders with PNG captures before submission. See [assets/screenshots/README.md](assets/screenshots/README.md).
-
 ---
 
 ## Documentation
